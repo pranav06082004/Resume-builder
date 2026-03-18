@@ -11,7 +11,7 @@ import ProjectForm from '../Components/ProjectForm'
 import SkillForm from '../Components/SkillForm'
 import ResumePreview from '../Components/resumePreview'
 import TemplateSelector from '../Components/templateSelector.jsx'
-import ColorPicker from '../Components/colorpicker'
+import ColorPicker from '../Components/Colorpicker'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 

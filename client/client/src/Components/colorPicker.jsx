@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Palette, Check } from 'lucide-react'
 
-const colorPicker = ({ selectedColor, onChange }) => {
+const ColorPicker = ({ selectedColor, onChange }) => {
 
     const colors = [
         { name: 'Blue', value: '#3B82F6' },
@@ -44,4 +44,4 @@ const colorPicker = ({ selectedColor, onChange }) => {
     )
 }
 
-export default colorPicker
+export default ColorPicker

@@ -4,10 +4,12 @@ import api from '../configs/api'
 import { useDispatch } from 'react-redux'
 import { login } from '../app/features/authSlice'
 import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 
 const Login = () => {
 
     const dispatch = useDispatch()
+    const navigate = useNavigate()
 
     const query = new URLSearchParams(window.location.search)
     const urlStatus = query.get("status")
@@ -22,6 +24,8 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
     e.preventDefault()
+
+    console.log(import.meta.env.VITE_BASE_URL);
 
     try {
 
@@ -42,6 +46,7 @@ const Login = () => {
         localStorage.setItem('token', data.token)
 
         toast.success(data.message)
+        navigate('/app')
 
     } catch (error) {
         toast.error(error?.response?.data?.message || error.message)

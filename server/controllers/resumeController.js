@@ -3,7 +3,7 @@
 // controller for creating a new resume
 
 import imagekit from "../configs/imageKit.js";
-import Resume from "../models/resume.js";
+import Resume from "../models/Resume.js";
 import fs from 'fs';
 
 // POST: /api/resumes/create

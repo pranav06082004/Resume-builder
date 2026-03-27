@@ -13,13 +13,16 @@ const PORT = process.env.PORT || 3000;
 await connectDB()
 
 
-app.use(cors());
+const allowedOrigins = ['http://localhost:5173', 'https://resume-builder-ten-lemon.vercel.app','resume-builder-git-main-pranavs-projects-5c98572f.vercel.app','resume-builder-m8z9f6y4e-pranavs-projects-5c98572f.vercel.app'];
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: true
+}));
 app.use(express.json());
 
 app.get('/', (req, res) => {
     res.send('Server is live');
 });
-app.get('/', (req, res)=>res.send('Server is live'))
 app.use('/api/users', userRouter);
 app.use('/api/resumes',resumeRouter);
 app.use('/api/ai', aiRouter)

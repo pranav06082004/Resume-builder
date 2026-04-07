@@ -3,6 +3,40 @@ import Resume from "../models/Resume.js";
 import ai from "../configs/ai.js";
 // controller for enhancing a resume professional summary
 
+// Helper function to extract JSON from text
+const extractJSON = (text) => {
+    // Try to find JSON object in the text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        try {
+            return JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            throw new Error('Invalid JSON in AI response');
+        }
+    }
+    throw new Error('No JSON found in AI response');
+};
+
+// Helper function to retry OpenAI call with backoff
+const callOpenAIWithRetry = async (messages, model, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await ai.chat.completions.create({
+                model,
+                messages,
+            });
+        } catch (error) {
+            if (error.status === 429 && i < retries - 1) {
+                // Wait with exponential backoff
+                const waitTime = Math.pow(2, i) * 1000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue;
+            }
+            throw error;
+        }
+    }
+};
+
 // post : /api/ai/enhance-pro-sum
 export const enhanceProfessionalSummary = async(req,res)=>{
     try{
@@ -82,75 +116,71 @@ export const uploadResume = async(req,res)=>{
 
         const userPrompt =`extract data from this resume : ${resumeText} provide data in the following JSON format with no additional text before or after:
         {
-        profesional_summary: {type: String, default: ''},
-     skills:[{type: String}],
-     personal_info:{
-        image: {type: String, default: ''},
-        full_name: {type: String, default: ''},
-        profession: {type: String, default: ''},
-        email: {type: String, default: ''},
-        phone: {type: String, default: ''},
-        location: {type: String, default: ''},
-        linkedIn:{type: String, default: ''},
-        website: {type: String, default: ''},
-     },
-     experience:[
-        {
-            company: {type: String},
-            position: {type: String},
-            start_date: {type: Date},
-            end_date: {type: Date},
-            description: {type: String},
-            is_current: {type: Boolean},
-
+        "professional_summary": "",
+        "skills": [],
+        "personal_info": {
+            "image": "",
+            "full_name": "",
+            "profession": "",
+            "email": "",
+            "phone": "",
+            "location": "",
+            "linkedIn": "",
+            "website": ""
+        },
+        "experience": [
+            {
+                "company": "",
+                "position": "",
+                "start_date": "",
+                "end_date": "",
+                "description": "",
+                "is_current": false
+            }
+        ],
+        "projects": [
+            {
+                "name": "",
+                "type": "",
+                "description": ""
+            }
+        ],
+        "education": [
+            {
+                "institution": "",
+                "degree": "",
+                "field": "",
+                "graduation": "",
+                "gpa": ""
+            }
+        ]
         }
-    ],
-    projects: [
-        {
-            name: {type: String},
-            type: {type: String},
-            description: {type: String},
-        }
-    ],
-     education:[
-        {
-            institution: {type: String},
-            degree: {type: String},
-            field: {type: String},
-            graduation: {type: String},
-            gpa: {type: String},
-
-        }
-    ],
-    }
      `
 
         
 
 
 
-        const response =await ai.chat.completions.create({
-            model: process.env.OPENAI_MODEL,
-    messages: [
-        {   role: "system",
-            content: systemPrompt,
-        },
-        {
-            role: "user",
-            content: userPrompt,
-        },
-    ],
-    response_format: {type : 'json_object'}
-
-        })
+        const response = await callOpenAIWithRetry([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+        ], process.env.OPENAI_MODEL || 'gpt-3.5-turbo');
 
         const extractedData = response.choices[0].message.content;
-        const parsedData= JSON.parse(extractedData)
+        let parsedData;
+        try {
+            parsedData = JSON.parse(extractedData);
+        } catch (parseError) {
+            // If direct parse fails, try to extract JSON
+            parsedData = extractJSON(extractedData);
+        }
         const newResume = await Resume.create({userId,title, ...parsedData})
         res.json({resumeId: newResume._id})
     }
     catch(error){
-        return res.status(400).json({message: error.message})
+        console.error('Upload resume error:', error);
+        const status = error.status || 400;
+        return res.status(status).json({message: error.message || 'An error occurred'})
 
     }
 }

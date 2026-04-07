@@ -22,25 +22,34 @@ const extractJSON = (text) => {
 };
 
 // Helper function to retry OpenAI call with backoff
-const callOpenAIWithRetry = async (messages, model = SAFE_OPENAI_MODEL, retries = 3) => {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await ai.chat.completions.create({
-                model,
-                messages,
-            });
-        } catch (error) {
-            const status = error?.response?.status || error.status;
-            if (status === 429 && i < retries - 1) {
-                // Wait with exponential backoff
-                const waitTime = Math.pow(2, i) * 1000;
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-                continue;
-            }
-            throw error;
-        }
+const callOpenAIWithRetry = async (
+  messages,
+  model = SAFE_OPENAI_MODEL,
+  retries = 5
+) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await ai.chat.completions.create({
+        model,
+        messages
+      })
+    } catch (error) {
+      const status =
+        error?.status ||
+        error?.response?.status
+
+      if (status === 429 && i < retries - 1) {
+        const waitTime = Math.pow(2, i) * 2000
+        await new Promise(resolve =>
+          setTimeout(resolve, waitTime)
+        )
+        continue
+      }
+
+      throw error
     }
-};
+  }
+}
 
 // post : /api/ai/enhance-pro-sum
 export const enhanceProfessionalSummary = async(req,res)=>{
@@ -95,86 +104,105 @@ export const enhanceJobDescription = async(req,res)=>{
 // controller for uploading a resume to the database
 // post :/api/ai/upload-resume
 
-export const uploadResume = async(req,res)=>{
-    try{
+export const uploadResume = async (req, res) => {
+  try {
+    const { resumeText, title } = req.body
+    const userId = req.userId
 
-        const {resumeText, title}= req.body;
-        const userId= req.userId;
+    if (!resumeText || !resumeText.trim()) {
+      return res.status(400).json({
+        message: 'Resume text is required'
+      })
+    }
 
-        if(!resumeText){
-            return res.status(400).json({message: 'Missing required fields'})
-        }
+    const systemPrompt = `
+      You are an expert AI agent that extracts structured data from resumes.
+      Return ONLY valid JSON.
+      Do not include markdown, code blocks, or extra text.
+    `
 
-        const systemPrompt = "You are an expert AI agent to extract data from resume."
+    const userPrompt = `
+      Extract data from this resume:
+      ${resumeText}
 
-        const userPrompt =`extract data from this resume : ${resumeText} provide data in the following JSON format with no additional text before or after:
-        {
+      Return in this exact JSON format:
+      {
         "professional_summary": "",
         "skills": [],
         "personal_info": {
-            "image": "",
-            "full_name": "",
-            "profession": "",
-            "email": "",
-            "phone": "",
-            "location": "",
-            "linkedIn": "",
-            "website": ""
+          "image": "",
+          "full_name": "",
+          "profession": "",
+          "email": "",
+          "phone": "",
+          "location": "",
+          "linkedIn": "",
+          "website": ""
         },
-        "experience": [
-            {
-                "company": "",
-                "position": "",
-                "start_date": "",
-                "end_date": "",
-                "description": "",
-                "is_current": false
-            }
-        ],
-        "projects": [
-            {
-                "name": "",
-                "type": "",
-                "description": ""
-            }
-        ],
-        "education": [
-            {
-                "institution": "",
-                "degree": "",
-                "field": "",
-                "graduation": "",
-                "gpa": ""
-            }
-        ]
-        }
-     `
+        "experience": [],
+        "projects": [],
+        "education": []
+      }
+    `
 
-        
+    const response = await callOpenAIWithRetry([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ])
 
+    const aiResponse =
+      response?.choices?.[0]?.message?.content
 
-
-        const response = await callOpenAIWithRetry([
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-        ]);
-
-        const extractedData = response.choices[0].message.content;
-        let parsedData;
-        try {
-            parsedData = JSON.parse(extractedData);
-        } catch (parseError) {
-            // If direct parse fails, try to extract JSON
-            parsedData = extractJSON(extractedData);
-        }
-        const newResume = await Resume.create({userId,title, ...parsedData})
-        res.json({resumeId: newResume._id})
+    if (!aiResponse) {
+      return res.status(400).json({
+        message: 'AI returned empty response'
+      })
     }
-    catch(error){
-        console.error('Upload resume error:', error);
-        const status = error?.response?.status || error.status || 400;
-        const message = error?.response?.data?.error?.message || error.message || 'An error occurred';
-        return res.status(status).json({message})
 
+    let parsedData
+
+    try {
+      parsedData = JSON.parse(aiResponse)
+    } catch (error) {
+      try {
+        parsedData = extractJSON(aiResponse)
+      } catch (extractError) {
+        console.error('JSON parse failed:', aiResponse)
+
+        return res.status(400).json({
+          message: 'Invalid AI response format'
+        })
+      }
     }
+
+    const newResume = await Resume.create({
+      userId,
+      title: title || 'Untitled Resume',
+      ...parsedData
+    })
+
+    return res.status(200).json({
+      resumeId: newResume._id
+    })
+  } catch (error) {
+    console.error('Upload resume error:', error)
+
+    const status =
+      error?.status ||
+      error?.response?.status ||
+      500
+
+    if (status === 429) {
+      return res.status(429).json({
+        message:
+          'Too many requests. Please try again in a few seconds.'
+      })
+    }
+
+    return res.status(500).json({
+      message:
+        error.message ||
+        'Something went wrong while uploading resume'
+    })
+  }
 }

@@ -66,6 +66,12 @@ const Dashboard = () => {
     e.preventDefault()
     setIsLoading(true)
 
+    if (!resume) {
+      toast.error('Please select a PDF file before uploading.')
+      setIsLoading(false)
+      return
+    }
+
     try {
 
       const resumeText = await pdfToText(resume)

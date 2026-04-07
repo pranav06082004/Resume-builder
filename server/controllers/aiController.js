@@ -3,6 +3,10 @@ import Resume from "../models/Resume.js";
 import ai from "../configs/ai.js";
 // controller for enhancing a resume professional summary
 
+const SAFE_OPENAI_MODEL = process.env.OPENAI_MODEL && process.env.OPENAI_MODEL.startsWith('gpt-')
+    ? process.env.OPENAI_MODEL
+    : 'gpt-3.5-turbo';
+
 // Helper function to extract JSON from text
 const extractJSON = (text) => {
     // Try to find JSON object in the text
@@ -18,7 +22,7 @@ const extractJSON = (text) => {
 };
 
 // Helper function to retry OpenAI call with backoff
-const callOpenAIWithRetry = async (messages, model, retries = 3) => {
+const callOpenAIWithRetry = async (messages, model = SAFE_OPENAI_MODEL, retries = 3) => {
     for (let i = 0; i < retries; i++) {
         try {
             return await ai.chat.completions.create({
@@ -26,7 +30,8 @@ const callOpenAIWithRetry = async (messages, model, retries = 3) => {
                 messages,
             });
         } catch (error) {
-            if (error.status === 429 && i < retries - 1) {
+            const status = error?.response?.status || error.status;
+            if (status === 429 && i < retries - 1) {
                 // Wait with exponential backoff
                 const waitTime = Math.pow(2, i) * 1000;
                 await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -45,19 +50,13 @@ export const enhanceProfessionalSummary = async(req,res)=>{
             return res.status(400).json({message: 'Missing required fields'})
         }
 
-        const response =await ai.chat.completions.create({
-            model: process.env.OPENAI_MODEL,
-    messages: [
-        {   role: "system",
-            content: "You are an expert in resume writing. Your task is to enhance the professional summary of a resume. The summary should be 1-2 sentence also highlighting key skills, experience, and career objectives. Make it compelling and ATS-friendly. and only return text no options or anything else." 
-        },
-        {
-            role: "user",
-            content: userContent,
-        },
-    ],
-
-        })
+        const response = await ai.chat.completions.create({
+            model: SAFE_OPENAI_MODEL,
+            messages: [
+                { role: "system", content: "You are an expert in resume writing. Your task is to enhance the professional summary of a resume. The summary should be 1-2 sentence also highlighting key skills, experience, and career objectives. Make it compelling and ATS-friendly. and only return text no options or anything else." },
+                { role: "user", content: userContent },
+            ],
+        });
 
         const enhancedContent = response.choices[0].message.content;
         return res.status(200).json({enhancedContent})
@@ -76,19 +75,13 @@ export const enhanceJobDescription = async(req,res)=>{
             return res.status(400).json({message: 'Missing required fields'})
         }
 
-        const response =await ai.chat.completions.create({
-            model: process.env.OPENAI_MODEL,
-    messages: [
-        {   role: "system",
-            content: "You are an expert in resume writing. Your task is to enhance the professional summary of a resume. The summary should be 1-2 sentence also highlighting key skills, experience, and career objectives. Make it compelling and ATS-friendly. and only return text no options or anything else." 
-        },
-        {
-            role: "user",
-            content: userContent,
-        },
-    ],
-
-        })
+        const response = await ai.chat.completions.create({
+            model: SAFE_OPENAI_MODEL,
+            messages: [
+                { role: "system", content: "You are an expert in resume writing. Your task is to enhance the professional summary of a resume. The summary should be 1-2 sentence also highlighting key skills, experience, and career objectives. Make it compelling and ATS-friendly. and only return text no options or anything else." },
+                { role: "user", content: userContent },
+            ],
+        });
 
         const enhancedContent = response.choices[0].message.content;
         return res.status(200).json({enhancedContent})
@@ -164,7 +157,7 @@ export const uploadResume = async(req,res)=>{
         const response = await callOpenAIWithRetry([
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
-        ], process.env.OPENAI_MODEL || 'gpt-3.5-turbo');
+        ]);
 
         const extractedData = response.choices[0].message.content;
         let parsedData;
@@ -179,8 +172,9 @@ export const uploadResume = async(req,res)=>{
     }
     catch(error){
         console.error('Upload resume error:', error);
-        const status = error.status || 400;
-        return res.status(status).json({message: error.message || 'An error occurred'})
+        const status = error?.response?.status || error.status || 400;
+        const message = error?.response?.data?.error?.message || error.message || 'An error occurred';
+        return res.status(status).json({message})
 
     }
 }

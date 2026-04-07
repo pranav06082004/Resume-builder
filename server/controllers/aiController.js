@@ -39,10 +39,19 @@ const callOpenAIWithRetry = async (
         error?.response?.status
 
       if (status === 429 && i < retries - 1) {
-        const waitTime = Math.pow(2, i) * 2000
-        await new Promise(resolve =>
-          setTimeout(resolve, waitTime)
+        const retryAfter =
+          Number(
+            error?.response?.headers?.['retry-after']
+          ) || Math.pow(2, i) * 3
+
+        console.log(
+          `429 received. Retrying in ${retryAfter}s`
         )
+
+        await new Promise(resolve =>
+          setTimeout(resolve, retryAfter * 1000)
+        )
+
         continue
       }
 
@@ -115,35 +124,37 @@ export const uploadResume = async (req, res) => {
       })
     }
 
-    const systemPrompt = `
-      You are an expert AI agent that extracts structured data from resumes.
-      Return ONLY valid JSON.
-      Do not include markdown, code blocks, or extra text.
-    `
+    const cleanResumeText = resumeText.slice(0, 6000)
 
-    const userPrompt = `
-      Extract data from this resume:
-      ${resumeText}
+const systemPrompt = `
+  You are an expert AI agent that extracts structured data from resumes.
+  Return ONLY valid JSON.
+  Do not include markdown, code blocks, or extra text.
+`
 
-      Return in this exact JSON format:
-      {
-        "professional_summary": "",
-        "skills": [],
-        "personal_info": {
-          "image": "",
-          "full_name": "",
-          "profession": "",
-          "email": "",
-          "phone": "",
-          "location": "",
-          "linkedIn": "",
-          "website": ""
-        },
-        "experience": [],
-        "projects": [],
-        "education": []
-      }
-    `
+const userPrompt = `
+  Extract data from this resume:
+  ${cleanResumeText}
+
+  Return in this exact JSON format:
+  {
+    "professional_summary": "",
+    "skills": [],
+    "personal_info": {
+      "image": "",
+      "full_name": "",
+      "profession": "",
+      "email": "",
+      "phone": "",
+      "location": "",
+      "linkedIn": "",
+      "website": ""
+    },
+    "experience": [],
+    "projects": [],
+    "education": []
+  }
+`
 
     const response = await callOpenAIWithRetry([
       { role: "system", content: systemPrompt },

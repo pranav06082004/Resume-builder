@@ -60,7 +60,7 @@ Resume-Builder/
 
 Application Live Link:
 
-resume-builder-ten-lemon.vercel.app/
+https://resume-builder-ten-lemon.vercel.app/
 
 
 ## 🔐 Authentication Flow

@@ -49,6 +49,17 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
     try {
 
+        // Debug: log incoming request info to help diagnose 400 responses
+        try {
+            const safeBody = { ...req.body };
+            if (safeBody.password) safeBody.password = '[REDACTED]';
+            console.log('🔍 Login request keys:', Object.keys(req.body));
+            console.log('🔍 Login body (masked):', safeBody);
+            console.log('🔍 Content-Type:', req.headers['content-type']);
+        } catch (e) {
+            console.log('🔍 Failed to log login request body:', e.message);
+        }
+
         const { email, password } = req.body;
 
         if(!email || !password){

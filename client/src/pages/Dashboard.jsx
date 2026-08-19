@@ -1,10 +1,9 @@
 import { FilePenLineIcon, LoaderCircleIcon, PencilIcon, PlusIcon, TrashIcon, UploadCloud, UploadCloudIcon, XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import api from '../configs/api'
 import toast from 'react-hot-toast'
-import pdfToText from 'react-pdftotext'
 
 const Dashboard = () => {
 
@@ -73,18 +72,24 @@ const Dashboard = () => {
     }
 
     try {
-
-      const resumeText = await pdfToText(resume)
+      const formData = new FormData()
+      formData.append('resume', resume)
+      formData.append('title', title)
 
       const { data } = await api.post(
         '/api/ai/upload-resume',
-        { title, resumeText },
-        { headers: { Authorization: token } }
+        formData,
+        { 
+          headers: { 
+            Authorization: token
+          } 
+        }
       )
 
       setTitle('')
       setResume(null)
       setShowUploadResume(false)
+      toast.success('Resume uploaded successfully!')
 
       navi(`/app/builder/${data.resumeId}`)
 
@@ -93,6 +98,24 @@ const Dashboard = () => {
     }
 
     setIsLoading(false)
+  }
+
+  const editTitle = async (e) => {
+    try {
+      e.preventDefault()
+      const { data } = await api.put(`/api/resumes/update`, { resumeId: editResumeId, resumeData: { title } }, { headers: {
+        Authorization: token
+      } })
+      setAllResumes(allResumes.map(resume => resume._id === editResumeId ? { ...resume, title } : resume))
+      setTitle('')
+      setEditResumeId('')
+      toast.success(data.message)
+
+    }
+    catch (error) {
+      toast.error(error?.response?.data?.message || error.message)
+    }
+
   }
 
 
@@ -117,23 +140,6 @@ const Dashboard = () => {
   }
 
 
-  const editTitle = async (e) => {
-    try{
-    e.preventDefault()
-    const {data} = await api.put(`/api/resumes/update`, {resumeId: editResumeId, resumeData: {title}}, {headers :{
-      Authorization : token
-    }})
-    setAllResumes(allResumes.map(resume => resume._id === editResumeId ? {...resume, title}: resume))
-    setTitle('')
-    setEditResumeId('')
-    toast.success(data.message)
-    
-  }
-  catch (error){
-    toast.error(error?.response?.data?.message || error.message)
-  }
-
-}
   useEffect(() => {
     if (token) {
       loadAllresumes()

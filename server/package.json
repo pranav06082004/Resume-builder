@@ -4,7 +4,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-     "build": "echo Build step running",
+    "build": "echo Build step running",
     "start": "node server.js",
     "server": "nodemon server.js"
   },
@@ -21,7 +21,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.3",
     "multer": "^2.1.0",
-    "openai": "^6.25.0"
+    "openai": "^6.25.0",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
